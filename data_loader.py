@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import warnings
+import gensim
 
 from torch.utils.data.dataset import Dataset
 from PIL import Image
@@ -8,29 +9,32 @@ from PIL import Image
 Image.MAX_IMAGE_PIXELS = None
 warnings.simplefilter('ignore', Image.DecompressionBombWarning)
 
-def get_data_from_path(entries_path, split):
-
-    data = pd.read_csv(f'{entries_path}/{split}_entries.csv')[['label','xray_paths','text']]
-    # Adjusting labels to fit with Snorkel MeTaL labeling convention (0 reserved for abstain)
-    data['label'][data['label']==0] = 2
-    perc_pos = sum(data['label']==1)/len(data)
-    print(f'{len(data)} {split} examples: {100*perc_pos:0.1f}% Abnormal')
-        
-    return data
-
+from xray_utils import get_from_csv, read_corpus, report2vec
+    
+import pdb
 class OpenI(Dataset):
-    def __init__(self, split, entries_path, transform):
+    def __init__(self, split, entries_path, transform, doc2vec_file=None):
         """
         Args:
-            split (string): train/test/split
+            split (string): "train"/"test"/"split"
             entries_path (string): path to folder containing csv of all image paths and text reports
             transform: pytorch transforms for transforms and tensor conversion
         """
+        
+        if not (doc2vec_file or split=="train"):
+            raise ValueError("doc2vec must be provided for non-train splits")
         self.transform = transform
-        self.entries = get_data_from_path(entries_path, split)
+        self.entries = get_from_csv(entries_path, split)
+        reports = self.entries.iloc[:,2]
+        self.doc2vec = report2vec(reports, doc2vec_file) if doc2vec_file else report2vec(reports)
+      
         
     def __getitem__(self, index):
-        return np.array(self.entries.iloc[0,:])
+        img_path = self.entries.iloc[0,:][1]
+        img_tensor = self.transform(Image.open(img_path).convert('L'))
+        report = self.entries.iloc[0,:][2]
+        report_tokens = gensim.utils.simple_preprocess(report)
+        return (img_tensor, self.doc2vec.infer_vector(report_tokens))
     
     def __len__(self):
         return len(self.entries)
