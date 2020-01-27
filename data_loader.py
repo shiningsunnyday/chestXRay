@@ -8,6 +8,33 @@ from PIL import Image
 Image.MAX_IMAGE_PIXELS = None
 warnings.simplefilter('ignore', Image.DecompressionBombWarning)
 
+def get_data_from_path(entries_path, split):
+
+    data = pd.read_csv(f'{entries_path}/{split}_entries.csv')[['label','xray_paths','text']]
+    # Adjusting labels to fit with Snorkel MeTaL labeling convention (0 reserved for abstain)
+    data['label'][data['label']==0] = 2
+    perc_pos = sum(data['label']==1)/len(data)
+    print(f'{len(data)} {split} examples: {100*perc_pos:0.1f}% Abnormal')
+        
+    return data
+
+class OpenI(Dataset):
+    def __init__(self, split, entries_path, transform):
+        """
+        Args:
+            split (string): train/test/split
+            entries_path (string): path to folder containing csv of all image paths and text reports
+            transform: pytorch transforms for transforms and tensor conversion
+        """
+        self.transform = transform
+        self.entries = get_data_from_path(entries_path, split)
+        
+    def __getitem__(self, index):
+        return np.array(self.entries.iloc[0,:])
+    
+    def __len__(self):
+        return len(self.entries)
+
 class WikiSatNet(Dataset):
     def __init__(self, csv_path, transform):
         """
