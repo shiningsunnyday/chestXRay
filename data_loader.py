@@ -27,11 +27,10 @@ class OpenI(Dataset):
         self.entries = get_from_csv(entries_path, split)
         reports = self.entries.iloc[:,2]
         self.doc2vec = report2vec(reports, doc2vec_file) if doc2vec_file else report2vec(reports)
-      
         
     def __getitem__(self, index):
         img_path = self.entries.iloc[0,:][1]
-        img_tensor = self.transform(Image.open(img_path).convert('L'))
+        img_tensor = self.transform(Image.open(img_path).convert('RGB'))
         report = self.entries.iloc[0,:][2]
         report_tokens = gensim.utils.simple_preprocess(report)
         return (img_tensor, self.doc2vec.infer_vector(report_tokens))

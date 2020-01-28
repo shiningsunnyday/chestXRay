@@ -1,6 +1,21 @@
 import pandas as pd
 import numpy as np
 import gensim
+import torch
+import torchvision.transforms as transforms
+import torchvision.datasets as torchdata
+import torchvision.models as torchmodels
+
+def transform_xray():
+    # Obtained by averaging/std'ing over all train images
+    mean = [109.99]
+    std = [53.95]
+    transform = transforms.Compose([
+        transforms.Resize((300,300)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean, std)
+    ])
+    return transform
 
 def get_from_csv(entries_path, split):
 
@@ -28,3 +43,18 @@ def report2vec(reports, file=None, file_save="report2vec.model"):
     model.train(corpus, total_examples=model.corpus_count, epochs=model.epochs)
     model.save(file_save)
     return model
+
+def set_parameter_requires_grad(model, feature_extracting):
+    # When loading the models, make sure to call this function to update the weights
+    if feature_extracting:
+        for param in model.parameters():
+            param.requires_grad = False
+
+def get_model(embed_size):
+    dnet = torchmodels.densenet161(pretrained=True)
+    set_parameter_requires_grad(dnet, False)
+    num_ftrs = dnet.classifier.in_features
+    dnet.classifier = torch.nn.Linear(num_ftrs, embed_size)
+
+    return dnet
+

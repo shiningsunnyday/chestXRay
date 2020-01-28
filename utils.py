@@ -13,17 +13,7 @@ def save_args(__file__, args):
     shutil.copy(os.path.basename(__file__), args.cv_dir)
     with open(args.cv_dir+'/args.txt','w') as f:
         f.write(str(args))
-        
-def transform_xray():
-    # Obtained by averaging/std'ing over all train images
-    mean = [109.99]
-    std = [53.95]
-    transform = transforms.Compose([
-        transforms.Resize((300,300)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean, std)
-    ])
-    return transform
+      
 
 def get_transforms():
     mean = [0.485, 0.456, 0.406]
