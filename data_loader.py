@@ -29,11 +29,35 @@ class OpenI(Dataset):
         self.doc2vec = report2vec(reports, doc2vec_file) if doc2vec_file else report2vec(reports)
         
     def __getitem__(self, index):
-        img_path = self.entries.iloc[0,:][1]
+        img_path = self.entries.iloc[index,:][1]
         img_tensor = self.transform(Image.open(img_path).convert('RGB'))
         report = self.entries.iloc[0,:][2]
         report_tokens = gensim.utils.simple_preprocess(report)
         return (img_tensor, self.doc2vec.infer_vector(report_tokens))
+    
+    def __len__(self):
+        return len(self.entries)
+    
+class MIMIC(Dataset):
+    def __init__(self, split, data_path, transform, annotate):
+        """
+        Args:
+            split (string): "train"/"test"/"split"
+            data_path (string): path to csv that has all splits, paths, and annotations
+            transform: pytorch transforms for transforms and tensor conversion
+            annotation: one of the functions to fill in np.nan as in the original chexpert paper
+        """
+        
+        data = pd.read_csv(data_path)
+        self.entries = data[data.split == split]
+        self.transform = transform
+        
+    def __getitem__(self, index):
+        img_path = self.data.iloc[index,:]['path']
+        img_tensor = self.transform(Image.open(img_path).convert('RGB'))
+        annotation = self.data.iloc[index,5:].values
+        label = annotate(annotation)
+        return (img_tensor, label)
     
     def __len__(self):
         return len(self.entries)

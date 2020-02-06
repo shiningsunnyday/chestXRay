@@ -18,6 +18,7 @@ import cv2
 import numpy as np
 import torch.backends.cudnn as cudnn
 cudnn.benchmark = True
+from torch.optim.lr_scheduler import StepLR
 
 import argparse
 parser = argparse.ArgumentParser(description='Radiograph_Pretraining')
@@ -38,14 +39,11 @@ def train(epoch, counter):
 
     rnet.train()
     losses = []
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     for batch_idx, (inputs, targets) in tqdm.tqdm(enumerate(trainloader), total=len(trainloader)):
-        inputs, targets = Variable(inputs), Variable(targets).cuda()
-        if not args.parallel:
-            inputs = inputs.cuda()
-
-        v_inputs = Variable(inputs.data, volatile=True)
-
-        preds = rnet.forward(v_inputs)
+      
+        inputs, targets = inputs.to(device), targets.to(device)
+        preds = rnet.forward(inputs)
 
         loss = criterion(preds, targets, torch.ones((inputs.size(0))).cuda())
         if batch_idx % 50 == 0:
@@ -69,18 +67,18 @@ def test(epoch):
     rnet.eval()
     losses = []
     for batch_idx, (inputs, targets) in tqdm.tqdm(enumerate(devloader), total=len(devloader)):
+        with torch.no_grad():
+            inputs, targets = Variable(inputs), Variable(targets).cuda()
+            if not args.parallel:
+                inputs = inputs.cuda()
 
-        inputs, targets = Variable(inputs, volatile=True), Variable(targets).cuda()
-        if not args.parallel:
-            inputs = inputs.cuda()
+            v_inputs = Variable(inputs.data)
 
-        v_inputs = Variable(inputs.data, volatile=True)
+            preds = rnet.forward(v_inputs)
 
-        preds = rnet.forward(v_inputs)
+            loss = criterion(preds, targets, torch.ones((inputs.size(0))).cuda())
 
-        loss = criterion(preds, targets, torch.ones((inputs.size(0))).cuda())
-
-        losses.append(loss.cpu())
+            losses.append(loss.cpu())
 
     loss = torch.stack(losses).mean()
     log_str = 'TS: %d | L: %.3f'%(epoch, loss)
@@ -113,9 +111,11 @@ start_epoch = 0
 counter = 0
 criterion = nn.CosineEmbeddingLoss()
 optimizer = optim.Adam(rnet.parameters(), lr=args.lr)
+scheduler = StepLR(optimizer, 1, gamma=args.wd, last_epoch=-1)
 configure(args.cv_dir+'/log', flush_secs=5)
 for epoch in range(start_epoch, start_epoch+args.max_epochs+1):
     train(epoch, counter)
     if epoch % 1 == 0:
+        torch.cuda.empty_cache()
         test(epoch)
-    lr_scheduler.step()
+    scheduler.step()
